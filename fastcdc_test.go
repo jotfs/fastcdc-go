@@ -135,6 +135,52 @@ func TestMinSize(t *testing.T) {
 	}
 }
 
+func BenchmarkFastCDC(b *testing.B) {
+	n := 100
+	benchData := randBytes(100*1024*1024, 345)
+
+	r := newLoopReader(benchData, n)
+	b.ResetTimer()
+	cnkr, err := NewChunker(r, Options{
+		MinSize:    512 * 1024,
+		MaxSize:    8 * 1024 * 1024,
+		NormalSize: 1 * 1024 * 1024,
+		SmallBits:  21,
+		LargeBits:  19,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	for {
+		_, err := cnkr.Next()
+		if err == io.EOF {
+			break
+		}
+	}
+	b.SetBytes(int64(n * len(benchData)))
+}
+
+type loopReader struct {
+	n    int
+	data []byte
+	r    *bytes.Reader
+	i    int
+}
+
+func newLoopReader(data []byte, n int) *loopReader {
+	return &loopReader{n, data, bytes.NewReader(data), 0}
+}
+
+func (lr *loopReader) Read(p []byte) (int, error) {
+	n, err := lr.r.Read(p)
+	if err == io.EOF && lr.i < lr.n {
+		lr.i++
+		lr.r.Reset(lr.data)
+		return n, nil
+	}
+	return n, err
+}
+
 func assertNoError(t *testing.T, err error) {
 	if err != nil {
 		t.Error("expected no error")

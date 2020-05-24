@@ -17,10 +17,10 @@ type Chunker struct {
 
 	rd io.Reader
 
-	buf      []byte
-	offset   int
-	cutpoint int
-	eof      bool
+	buf    []byte
+	cursor int
+	offset int
+	eof    bool
 }
 
 // Options stores the options for the chunker.
@@ -42,6 +42,12 @@ type Options struct {
 	// This is to prevent chunk-size based fingerprinting attacks. It may be set to a
 	// random uint64.
 	Seed uint64
+
+	// BufSize is the size of the internal buffer used while chunking. It has no effect
+	// on the chuking output, but performance is improved with larger buffers. It must be 
+	// at least MaxSize. Reccomended values are 1 to 3 times MaxSize. If left unspecified,
+	// BufSize is set to 2 * MaxSize by default.
+	BufSize int
 }
 
 // Chunk stores a content-defined chunk returned by a Chunker.
@@ -70,6 +76,11 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 		table[i] = table[i] ^ opts.Seed
 	}
 
+	if opts.BufSize == 0 {
+		opts.BufSize = opts.MaxSize * 2
+	}
+	buf := make([]byte, opts.BufSize)
+
 	return &Chunker{
 		minSize:  opts.MinSize,
 		maxSize:  opts.MaxSize,
@@ -77,15 +88,20 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 		maskS:    (1 << opts.SmallBits) - 1,
 		maskL:    (1 << opts.LargeBits) - 1,
 		rd:       rd,
-		buf:      make([]byte, opts.MaxSize),
-		cutpoint: opts.MaxSize,
+		buf:      buf,
+		cursor:   len(buf),
 	}, nil
 }
 
 func (c *Chunker) fillBuffer() error {
-	// Move all data after the cutpoint to the start of the buffer
-	n := len(c.buf) - c.cutpoint
-	copy(c.buf[:n], c.buf[c.cutpoint:])
+	n := len(c.buf) - c.cursor
+	if n >= c.maxSize {
+		return nil
+	}
+
+	// Move all data after the cursor to the start of the buffer
+	copy(c.buf[:n], c.buf[c.cursor:])
+	c.cursor = 0
 
 	if c.eof {
 		c.buf = c.buf[:n]
@@ -113,17 +129,17 @@ func (c *Chunker) Next() (Chunk, error) {
 		return Chunk{}, io.EOF
 	}
 
-	cutpoint, fp := c.nextChunk(c.buf)
+	length, fp := c.nextChunk(c.buf[c.cursor:])
 
 	chunk := Chunk{
 		Offset:      c.offset,
-		Length:      cutpoint,
-		Data:        c.buf[:cutpoint],
+		Length:      length,
+		Data:        c.buf[c.cursor : c.cursor+length],
 		Fingerprint: fp,
 	}
 
-	c.cutpoint = cutpoint
-	c.offset += cutpoint
+	c.cursor += length
+	c.offset += chunk.Length
 
 	return chunk, nil
 }
@@ -176,6 +192,9 @@ func (opts Options) validate() error {
 	}
 	if opts.LargeBits > opts.SmallBits {
 		return errors.New("option LargeBits must be less than or equal to SmallBits")
+	}
+	if opts.BufSize <= 0 && opts.BufSize <= opts.MaxSize {
+		return errors.New("options BufSize, if specified, must be at least MaxSize")
 	}
 	return nil
 }
