@@ -193,8 +193,8 @@ func (opts Options) validate() error {
 	if opts.LargeBits > opts.SmallBits {
 		return errors.New("option LargeBits must be less than or equal to SmallBits")
 	}
-	if opts.BufSize <= 0 && opts.BufSize <= opts.MaxSize {
-		return errors.New("options BufSize, if specified, must be at least MaxSize")
+	if opts.BufSize < 0 && opts.BufSize <= opts.MaxSize {
+		return errors.New("option BufSize, if specified, must be at least MaxSize")
 	}
 	return nil
 }
