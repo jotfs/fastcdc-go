@@ -10,11 +10,7 @@ import (
 )
 
 var defaultOpts = Options{
-	MinSize:    256,
-	MaxSize:    4 * 1024,
-	NormalSize: 1024,
-	SmallBits:  12,
-	LargeBits:  8,
+	AverageSize: 1024,
 	Seed:       84372,
 }
 
@@ -116,7 +112,7 @@ func TestChunkingBasic(t *testing.T) {
 
 func TestMinSize(t *testing.T) {
 	// Test with data smaller than min chunk size
-	data := randBytes(defaultOpts.MinSize-1, 51)
+	data := randBytes(10, 51)
 	chunker, err := NewChunker(bytes.NewReader(data), defaultOpts)
 	assertNoError(t, err)
 
@@ -136,17 +132,14 @@ func TestMinSize(t *testing.T) {
 }
 
 func BenchmarkFastCDC(b *testing.B) {
+	// 10GiB data total to chunk
 	n := 100
 	benchData := randBytes(100*1024*1024, 345)
-
 	r := newLoopReader(benchData, n)
+
 	b.ResetTimer()
 	cnkr, err := NewChunker(r, Options{
-		MinSize:    512 * 1024,
-		MaxSize:    8 * 1024 * 1024,
-		NormalSize: 1 * 1024 * 1024,
-		SmallBits:  21,
-		LargeBits:  19,
+		AverageSize: 1 * miB,
 	})
 	if err != nil {
 		b.Fatal(err)
@@ -160,6 +153,8 @@ func BenchmarkFastCDC(b *testing.B) {
 	b.SetBytes(int64(n * len(benchData)))
 }
 
+// loopReader implements io.Reader, looping over a provided buffer a given number of
+// times.
 type loopReader struct {
 	n    int
 	data []byte
@@ -183,7 +178,7 @@ func (lr *loopReader) Read(p []byte) (int, error) {
 
 func assertNoError(t *testing.T, err error) {
 	if err != nil {
-		t.Error("expected no error")
+		t.Errorf("expected no error but received: %v", err)
 	}
 }
 

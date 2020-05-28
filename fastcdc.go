@@ -3,6 +3,17 @@ package fastcdc
 import (
 	"errors"
 	"io"
+	"math"
+)
+
+const (
+	kiB = 1024
+	miB = 1024 * kiB
+
+	minSize = 64
+	maxSize = 1 << 30
+
+	defaultNormalization = 2
 )
 
 // Chunker implements the FastCDC content defined chunking algorithm.
@@ -23,31 +34,53 @@ type Chunker struct {
 	eof    bool
 }
 
-// Options stores the options for the chunker.
+// Options configures the options for the Chunker.
 type Options struct {
-	// MinSize is the minimum allowed chunk size.
+	// NormalSize is the target chunk size. Typically a power of 2. It must be in the
+	// range 64B to 1GiB.
+	AverageSize int
+
+	// (Optional) MinSize is the minimum allowed chunk size. By default, it's set to
+	// AverageSize / 4.
 	MinSize int
 
-	// MaxSize is the maximum allowed chunk size.
+	// (Optional) MaxSize is the maximum allowed chunk size. By default, it's set to
+	// AverageSize * 4.
 	MaxSize int
 
-	// NormalSize is the target chunk size. Typically a power of 2.
-	NormalSize int
+	// (Optional) Sets the the chunk normalization level to improve the distribution of
+	// chunk sizes. It must take one of the values: 1, 2 or 3, unless DisableNormalization
+	// is set, in which case it's ignored. By default, it's set to 2.
+	Normalization int
 
-	// SmallBits and LargeBits control the chunk normalization level.
-	SmallBits uint8
-	LargeBits uint8
+	// (Optional) DisableNormalization turns normalization off. By default, it's set to
+	// false.
+	DisableNormalization bool
 
-	// Seed is an optional parameter to alter the table of the rolling hash algorithm.
-	// This is to prevent chunk-size based fingerprinting attacks. It may be set to a
-	// random uint64.
+	// (Optional) Seed alters the lookup table of the rolling hash algorithm to mitigate
+	// chunk-size based fingerprinting attacks. It may be set to a random uint64.
 	Seed uint64
 
-	// BufSize is the size of the internal buffer used while chunking. It has no effect
-	// on the chuking output, but performance is improved with larger buffers. It must be 
-	// at least MaxSize. Reccomended values are 1 to 3 times MaxSize. If left unspecified,
-	// BufSize is set to 2 * MaxSize by default.
+	// (Optional) BufSize is the size of the internal buffer used while chunking. It has
+	// no effect on the chuking output, but performance is improved with larger buffers.
+	// It must be at least MaxSize. Reccomended values are 1 to 3 times MaxSize. By
+	// default it is set to MaxSize * 2.
 	BufSize int
+}
+
+func (opts *Options) setDefaults() {
+	if opts.MinSize == 0 {
+		opts.MinSize = opts.AverageSize / 4
+	}
+	if opts.MaxSize == 0 {
+		opts.MaxSize = opts.AverageSize * 4
+	}
+	if opts.BufSize == 0 {
+		opts.BufSize = opts.MaxSize * 2
+	}
+	if opts.Normalization == 0 {
+		opts.Normalization = 2
+	}
 }
 
 // Chunk stores a content-defined chunk returned by a Chunker.
@@ -68,6 +101,7 @@ type Chunk struct {
 
 // NewChunker returns a Chunker with the given Options.
 func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
+	opts.setDefaults()
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
@@ -81,16 +115,25 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 	}
 	buf := make([]byte, opts.BufSize)
 
-	return &Chunker{
+	normalization := opts.Normalization
+	if opts.DisableNormalization {
+		normalization = 0
+	}
+	bits := int(math.Round(math.Log2(float64(opts.AverageSize))))
+	smallBits := bits + normalization
+	largeBits := bits - normalization
+
+	chunker := &Chunker{
 		minSize:  opts.MinSize,
 		maxSize:  opts.MaxSize,
-		normSize: opts.NormalSize,
-		maskS:    (1 << opts.SmallBits) - 1,
-		maskL:    (1 << opts.LargeBits) - 1,
+		normSize: opts.AverageSize,
+		maskS:    (1 << smallBits) - 1,
+		maskL:    (1 << largeBits) - 1,
 		rd:       rd,
 		buf:      buf,
 		cursor:   len(buf),
-	}, nil
+	}
+	return chunker, nil
 }
 
 func (c *Chunker) fillBuffer() error {
@@ -172,28 +215,25 @@ func (c *Chunker) nextChunk(data []byte) (int, uint64) {
 }
 
 func (opts Options) validate() error {
-	if opts.MinSize <= 0 {
-		return errors.New("option MinSize must be greater than zero")
+	if opts.MinSize < minSize || opts.MinSize > maxSize {
+		return errors.New("option MinSize must be in range 64B to 1GiB")
 	}
-	if opts.MaxSize <= 0 {
-		return errors.New("option MaxSize must be greater than zero")
+	if opts.MaxSize < minSize || opts.MaxSize > maxSize {
+		return errors.New("option MaxSize must be in range 64B to 1GiB")
 	}
 	if opts.MaxSize <= opts.MinSize {
 		return errors.New("option MinSize must be less than option MaxSize")
 	}
-	if opts.NormalSize > opts.MaxSize || opts.NormalSize < opts.MinSize {
-		return errors.New("option NormalSize must be betweeen MinSize and MaxSize")
+	if opts.AverageSize > opts.MaxSize || opts.AverageSize < opts.MinSize {
+		return errors.New("option AverageSize must be betweeen MinSize and MaxSize")
 	}
-	if opts.SmallBits <= 0 || opts.SmallBits >= 64 {
-		return errors.New("option SmallBits must be between 0 and 64")
+	if opts.MaxSize-opts.MinSize < opts.AverageSize {
+		return errors.New("difference between options MinSize and MaxSize must be greater than AverageSize")
 	}
-	if opts.LargeBits <= 0 || opts.LargeBits >= 64 {
-		return errors.New("option LargeBits must be between 0 and 64")
+	if !opts.DisableNormalization && (opts.Normalization < 0 || opts.Normalization > 4) {
+		return errors.New("option Normalization must be 0, 1, 2 or 3")
 	}
-	if opts.LargeBits > opts.SmallBits {
-		return errors.New("option LargeBits must be less than or equal to SmallBits")
-	}
-	if opts.BufSize < 0 && opts.BufSize <= opts.MaxSize {
+	if opts.BufSize <= opts.MaxSize {
 		return errors.New("option BufSize, if specified, must be at least MaxSize")
 	}
 	return nil
