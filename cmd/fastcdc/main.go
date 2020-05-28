@@ -56,6 +56,10 @@ func main() {
 		if err == io.EOF {
 			break
 		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			os.Exit(1)
+		}
 		if *csv {
 			fmt.Printf("%d,%d\n", chunk.Offset, chunk.Length)
 		} else {

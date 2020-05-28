@@ -11,7 +11,7 @@ import (
 
 var defaultOpts = Options{
 	AverageSize: 1024,
-	Seed:       84372,
+	Seed:        84372,
 }
 
 var defaultData = randBytes(4321, 7291)
@@ -77,7 +77,7 @@ func TestChunking(t *testing.T) {
 	}
 }
 
-func TestChunkingBasic(t *testing.T) {
+func TestChunkingRandom(t *testing.T) {
 	data := randBytes(1e6, 63)
 	chunker, err := NewChunker(bytes.NewReader(data), defaultOpts)
 	assertNoError(t, err)
@@ -113,7 +113,9 @@ func TestChunkingBasic(t *testing.T) {
 func TestMinSize(t *testing.T) {
 	// Test with data smaller than min chunk size
 	data := randBytes(10, 51)
-	chunker, err := NewChunker(bytes.NewReader(data), defaultOpts)
+	opts := defaultOpts
+	opts.DisableNormalization = true
+	chunker, err := NewChunker(bytes.NewReader(data), opts)
 	assertNoError(t, err)
 
 	c, err := chunker.Next()
@@ -131,9 +133,37 @@ func TestMinSize(t *testing.T) {
 	}
 }
 
+func TestOptionsValidation(t *testing.T) {
+	avg := 1024 * 64
+	testOpts := []Options{
+		// AverageSize not set
+		{},
+		// MinSize too small
+		{AverageSize: avg, MinSize: 1},
+		// MaxSize too big
+		{AverageSize: avg, MaxSize: maxSize + 1},
+		// MaxSize less than MinSize
+		{AverageSize: avg, MaxSize: avg / 2, MinSize: avg * 2},
+		// AverageSize less than MinSize
+		{AverageSize: avg, MinSize: 2 * avg, MaxSize: 4 * avg},
+		// Bad normalization
+		{AverageSize: avg, Normalization: 100},
+		// BufSize too small
+		{AverageSize: avg, BufSize: 1},
+	}
+	var r bytes.Reader
+
+	for i, opts := range testOpts {
+		_, err := NewChunker(&r, opts)
+		if err == nil {
+			t.Fatalf("%d: expected error", i)
+		}
+	}
+}
+
 func BenchmarkFastCDC(b *testing.B) {
-	// 10GiB data total to chunk
-	n := 100
+	// total of 10GiB of data to chunk
+	n := 10
 	benchData := randBytes(100*1024*1024, 345)
 	r := newLoopReader(benchData, n)
 
@@ -148,6 +178,9 @@ func BenchmarkFastCDC(b *testing.B) {
 		_, err := cnkr.Next()
 		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			b.Fatal(err)
 		}
 	}
 	b.SetBytes(int64(n * len(benchData)))

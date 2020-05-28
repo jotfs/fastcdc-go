@@ -48,9 +48,9 @@ type Options struct {
 	// AverageSize * 4.
 	MaxSize int
 
-	// (Optional) Sets the the chunk normalization level to improve the distribution of
-	// chunk sizes. It must take one of the values: 1, 2 or 3, unless DisableNormalization
-	// is set, in which case it's ignored. By default, it's set to 2.
+	// (Optional) Sets the chunk normalization level. It may be set to 1, 2 or 3,
+	// unless DisableNormalization is set, in which case it's ignored. By default,
+	// it's set to 2.
 	Normalization int
 
 	// (Optional) DisableNormalization turns normalization off. By default, it's set to
@@ -78,7 +78,7 @@ func (opts *Options) setDefaults() {
 	if opts.BufSize == 0 {
 		opts.BufSize = opts.MaxSize * 2
 	}
-	if opts.Normalization == 0 {
+	if !opts.DisableNormalization && opts.Normalization == 0 {
 		opts.Normalization = 2
 	}
 }
@@ -110,11 +110,6 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 		table[i] = table[i] ^ opts.Seed
 	}
 
-	if opts.BufSize == 0 {
-		opts.BufSize = opts.MaxSize * 2
-	}
-	buf := make([]byte, opts.BufSize)
-
 	normalization := opts.Normalization
 	if opts.DisableNormalization {
 		normalization = 0
@@ -130,9 +125,10 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 		maskS:    (1 << smallBits) - 1,
 		maskL:    (1 << largeBits) - 1,
 		rd:       rd,
-		buf:      buf,
-		cursor:   len(buf),
+		buf:      make([]byte, opts.BufSize),
+		cursor:   opts.BufSize,
 	}
+
 	return chunker, nil
 }
 
@@ -215,6 +211,9 @@ func (c *Chunker) nextChunk(data []byte) (int, uint64) {
 }
 
 func (opts Options) validate() error {
+	if opts.AverageSize == 0 {
+		return errors.New("option AverageSize is required")
+	}
 	if opts.MinSize < minSize || opts.MinSize > maxSize {
 		return errors.New("option MinSize must be in range 64B to 1GiB")
 	}
@@ -227,10 +226,7 @@ func (opts Options) validate() error {
 	if opts.AverageSize > opts.MaxSize || opts.AverageSize < opts.MinSize {
 		return errors.New("option AverageSize must be betweeen MinSize and MaxSize")
 	}
-	if opts.MaxSize-opts.MinSize < opts.AverageSize {
-		return errors.New("difference between options MinSize and MaxSize must be greater than AverageSize")
-	}
-	if !opts.DisableNormalization && (opts.Normalization < 0 || opts.Normalization > 4) {
+	if !opts.DisableNormalization && (opts.Normalization <= 0 || opts.Normalization > 4) {
 		return errors.New("option Normalization must be 0, 1, 2 or 3")
 	}
 	if opts.BufSize <= opts.MaxSize {
