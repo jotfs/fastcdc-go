@@ -63,7 +63,7 @@ type Options struct {
 
 	// (Optional) BufSize is the size of the internal buffer used while chunking. It has
 	// no effect on the chuking output, but performance is improved with larger buffers.
-	// It must be at least MaxSize. Reccomended values are 1 to 3 times MaxSize. By
+	// It must be at least MaxSize. Recommended values are 1 to 3 times MaxSize. By
 	// default it is set to MaxSize * 2.
 	BufSize int
 }

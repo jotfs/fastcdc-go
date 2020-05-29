@@ -1,6 +1,8 @@
 # FastCDC-Go
 
-[![Docs](https://godoc.org/github.com/iotafs/fastcdc-go?status.svg)](https://pkg.go.dev/github.com/iotafs/fastcdc-go?tab=doc)
+[![Docs](https://godoc.org/github.com/iotafs/fastcdc-go?status.svg)](https://pkg.go.dev/github.com/iotafs/fastcdc-go?tab=doc) [![Build Status](https://travis-ci.org/iotafs/fastcdc-go.svg?branch=master)](https://travis-ci.org/iotafs/fastcdc-go) [![codecov](https://codecov.io/gh/iotafs/fastcdc-go/branch/master/graph/badge.svg)](https://codecov.io/gh/iotafs/fastcdc-go) [![Go Report Card](https://goreportcard.com/badge/github.com/iotafs/fastcdc-go)](https://goreportcard.com/report/github.com/iotafs/fastcdc-go)
+
+
 
 FastCDC-Go is a Go library implementing the [FastCDC](#references) content-defined chunking algorithm.
 
