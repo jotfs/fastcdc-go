@@ -1,5 +1,7 @@
 # FastCDC-Go
 
+[![Docs](https://godoc.org/github.com/iotafs/fastcdc-go?status.svg)](https://pkg.go.dev/github.com/iotafs/fastcdc-go?tab=doc)
+
 FastCDC-Go is a Go library implementing the [FastCDC](#references) content-defined chunking algorithm.
 
 Install: 
