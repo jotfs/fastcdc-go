@@ -1,14 +1,12 @@
 # FastCDC-Go
 
-[![Docs](https://godoc.org/github.com/iotafs/fastcdc-go?status.svg)](https://pkg.go.dev/github.com/iotafs/fastcdc-go?tab=doc) [![Build Status](https://travis-ci.org/iotafs/fastcdc-go.svg?branch=master)](https://travis-ci.org/iotafs/fastcdc-go) [![codecov](https://codecov.io/gh/iotafs/fastcdc-go/branch/master/graph/badge.svg)](https://codecov.io/gh/iotafs/fastcdc-go) [![Go Report Card](https://goreportcard.com/badge/github.com/iotafs/fastcdc-go)](https://goreportcard.com/report/github.com/iotafs/fastcdc-go)
-
-
+[![Docs](https://godoc.org/github.com/jotfs/fastcdc-go?status.svg)](https://pkg.go.dev/github.com/jotfs/fastcdc-go?tab=doc) [![Build Status](https://travis-ci.org/jotfs/fastcdc-go.svg?branch=master)](https://travis-ci.org/jotfs/fastcdc-go) [![codecov](https://codecov.io/gh/jotfs/fastcdc-go/branch/master/graph/badge.svg)](https://codecov.io/gh/jotfs/fastcdc-go) [![Go Report Card](https://goreportcard.com/badge/github.com/jotfs/fastcdc-go)](https://goreportcard.com/report/github.com/jotfs/fastcdc-go)
 
 FastCDC-Go is a Go library implementing the [FastCDC](#references) content-defined chunking algorithm.
 
 Install: 
 ```
-go get -u github.com/iotafs/fastcdc-go
+go get -u github.com/jotfs/fastcdc-go
 ```
 
 ## Example
@@ -21,7 +19,7 @@ import (
   "math/rand"
   "io"
 
-  "github.com/iotafs/fastcdc-go"
+  "github.com/jotfs/fastcdc-go"
 )
 
 opts := fastcdc.Options{

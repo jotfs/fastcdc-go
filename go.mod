@@ -1,3 +1,3 @@
-module github.com/iotafs/fastcdc-go
+module github.com/jotfs/fastcdc-go
 
 go 1.14

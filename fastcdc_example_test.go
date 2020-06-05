@@ -8,7 +8,7 @@ import (
 	"log"
 	"math/rand"
 
-	"github.com/iotafs/fastcdc-go"
+	"github.com/jotfs/fastcdc-go"
 )
 
 func Example_basic() {
