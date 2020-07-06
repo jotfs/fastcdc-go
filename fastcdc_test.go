@@ -186,6 +186,76 @@ func BenchmarkFastCDC(b *testing.B) {
 	b.SetBytes(int64(n * len(benchData)))
 }
 
+type bencSpec struct {
+	size int
+	name string
+}
+
+var bSizes = []bencSpec{
+	{   1 << 10,   "1k"},
+	{   4 << 10,   "4k"},
+	{  16 << 10,  "16k"},
+	{  32 << 10,  "32k"},
+	{  64 << 10,  "64k"},
+	{ 128 << 10, "128k"},
+	{ 256 << 10, "256k"},
+	{ 512 << 10, "512k"},
+	{   1 << 20,   "1M"},
+	{   4 << 20,   "4M"},
+	{  16 << 20,  "16M"},
+	{  32 << 20,  "32M"},
+	{  64 << 20,  "64M"},
+	{ 128 << 20, "128M"},
+	{ 512 << 20, "512M"},
+	{   1 << 30,   "1G"},
+}
+
+func BenchmarkFastCDCSize(b *testing.B) {
+	for _, s := range bSizes {
+		s := s
+		b.Run(s.name, func(b *testing.B) {
+			benchmarkFastCDCSize(b, s.size)
+		})
+	}
+}
+
+func benchmarkFastCDCSize(b *testing.B, size int) {
+	rng := rand.New(rand.NewSource(1))
+	data := make([]byte, size)
+	rng.Read(data)
+
+	r := bytes.NewReader(data)
+	b.SetBytes(int64(size))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var res uint64
+	var nchks int64
+
+	for i := 0; i < b.N; i++ {
+		r.Reset(data)
+		cnkr, err := NewChunker(r, Options{
+			AverageSize: 1 * miB,
+		})
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		for {
+			chunk, err := cnkr.Next()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				b.Fatal(err)
+			}
+			res = res + uint64(len(chunk.Data))
+			nchks++
+		}
+	}
+	b.ReportMetric(float64(nchks)/float64(b.N), "chunks")
+}
+
 // loopReader implements io.Reader, looping over a provided buffer a given number of
 // times.
 type loopReader struct {
