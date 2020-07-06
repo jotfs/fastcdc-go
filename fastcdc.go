@@ -30,6 +30,7 @@ type Chunker struct {
 
 	buf    []byte
 	cursor int
+	end    int
 	offset int
 	eof    bool
 }
@@ -127,13 +128,23 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 		rd:       rd,
 		buf:      make([]byte, opts.BufSize),
 		cursor:   opts.BufSize,
+		end:      opts.BufSize,
 	}
 
 	return chunker, nil
 }
 
+// Reset reinitializes the chunker with a new reader
+func (c *Chunker) Reset(rd io.Reader) {
+	c.rd = rd
+	c.offset = 0
+	c.eof = false
+	c.cursor = len(c.buf)
+	c.end = len(c.buf)
+}
+
 func (c *Chunker) fillBuffer() error {
-	n := len(c.buf) - c.cursor
+	n := c.end - c.cursor
 	if n >= c.maxSize {
 		return nil
 	}
@@ -143,14 +154,14 @@ func (c *Chunker) fillBuffer() error {
 	c.cursor = 0
 
 	if c.eof {
-		c.buf = c.buf[:n]
+		c.end = n
 		return nil
 	}
 
 	// Fill the rest of the buffer
 	m, err := io.ReadFull(c.rd, c.buf[n:])
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		c.buf = c.buf[:n+m]
+		c.end = n+m
 		c.eof = true
 	} else if err != nil {
 		return err
@@ -164,11 +175,11 @@ func (c *Chunker) Next() (Chunk, error) {
 	if err := c.fillBuffer(); err != nil {
 		return Chunk{}, err
 	}
-	if len(c.buf) == 0 {
+	if c.end == 0 {
 		return Chunk{}, io.EOF
 	}
 
-	length, fp := c.nextChunk(c.buf[c.cursor:])
+	length, fp := c.nextChunk(c.buf[c.cursor:c.end])
 
 	chunk := Chunk{
 		Offset:      c.offset,
