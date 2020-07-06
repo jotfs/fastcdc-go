@@ -229,17 +229,19 @@ func benchmarkFastCDCSize(b *testing.B, size int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
+	cnkr, err := NewChunker(r, Options{
+		AverageSize: 1 * miB,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	var res uint64
 	var nchks int64
 
 	for i := 0; i < b.N; i++ {
 		r.Reset(data)
-		cnkr, err := NewChunker(r, Options{
-			AverageSize: 1 * miB,
-		})
-		if err != nil {
-			b.Fatal(err)
-		}
+		cnkr.NewReader(r)
 
 		for {
 			chunk, err := cnkr.Next()
