@@ -134,7 +134,8 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 	return chunker, nil
 }
 
-func (c *Chunker) NewReader(rd io.Reader) {
+// Reset reinitializes the chunker with a new reader
+func (c *Chunker) Reset(rd io.Reader) {
 	c.rd = rd
 	c.offset = 0
 	c.eof = false

@@ -241,7 +241,7 @@ func benchmarkFastCDCSize(b *testing.B, size int) {
 
 	for i := 0; i < b.N; i++ {
 		r.Reset(data)
-		cnkr.NewReader(r)
+		cnkr.Reset(r)
 
 		for {
 			chunk, err := cnkr.Next()
