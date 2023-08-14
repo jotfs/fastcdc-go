@@ -106,8 +106,10 @@ func NewChunker(rd io.Reader, opts Options) (*Chunker, error) {
 		return nil, err
 	}
 
-	for i := 0; i < len(table); i++ {
-		table[i] = table[i] ^ opts.Seed
+	if opts.Seed != 0 {
+		for i := 0; i < len(table); i++ {
+			table[i] = table[i] ^ opts.Seed
+		}
 	}
 
 	normalization := opts.Normalization
